@@ -430,6 +430,25 @@ table.tbl { width: 100%; border-collapse: collapse; }
   border-top: 1px solid var(--line);
   font-size: 12px; color: var(--ink-3); line-height: 1.9;
 }
+/* 页脚版权：与页脚正文同字号同色，左对齐 */
+.foot .copy {
+  margin-top: 10px;
+  font-size: 12px;
+  line-height: 1.9;
+  color: var(--ink-3);
+  text-align: left;
+  letter-spacing: .2px;
+  white-space: normal;
+  word-break: keep-all;
+}
+.foot .copy .copy-yr { font-variant-numeric: tabular-nums; }
+.foot .copy .copy-ver {
+  margin-left: 3px;
+  font-family: var(--mono);
+  font-size: 11px;
+  opacity: .8;
+  letter-spacing: 0;
+}
 .empty { padding: 48px; text-align: center; color: var(--ink-3); }
 
 

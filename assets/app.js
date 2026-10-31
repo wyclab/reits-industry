@@ -34,6 +34,16 @@
     qs(q) { return q ? q.replace(/^(\d{4})/, "$1 ") : "—"; },
   };
 
+  /* ---------- 页脚版权年份（动态，跨年自动更新） ---------- */
+  function syncCopyYear() {
+    const y = String(new Date().getFullYear());
+    $$(".copy-yr").forEach((el) => {
+      if (el.textContent !== y) el.textContent = y;
+    });
+  }
+  document.addEventListener("DOMContentLoaded", syncCopyYear);
+  setInterval(syncCopyYear, 60 * 1000);
+
   /* ---------- 明暗主题 ---------- */
   const THEME = (function () {
     const KEY = "reits-theme-mode";
