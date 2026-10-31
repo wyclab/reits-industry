@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>省份趋势 · 产业园区 REITs</title>
+<meta name="theme-color" content="#4375ff">
+<script>
+/* 首屏前应用主题，避免明暗闪烁（19:00–07:00 自动深夜模式） */
+(function () {
+  try {
+    var m = sessionStorage.getItem("reits-theme-mode");
+    var h = new Date().getHours();
+    var t = (m === "light" || m === "dark") ? m : ((h >= 19 || h < 7) ? "dark" : "light");
+    document.documentElement.setAttribute("data-theme", t);
+  } catch (e) {}
+})();
+</script>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<div class="wrap">
+  <div class="page-head">
+    <div class="crumb" id="crumb"></div>
+    <div class="eyebrow">Province Detail</div>
+    <h1 id="name">—</h1>
+    <p class="sub" id="meta"></p>
+  </div>
+
+  <div class="card card-pad" style="margin-bottom:16px">
+    <div class="kv" id="kv"></div>
+  </div>
+
+  <div class="chart-grid" id="charts"></div>
+
+  <div class="card card-pad" style="margin-top:16px">
+    <div class="chart-title"><b>该省底层资产</b><span id="cnt"></span></div>
+    <div style="overflow:auto">
+      <table class="tbl" id="tbl"></table>
+    </div>
+  </div>
+
+  <div class="foot">
+    省份指标为该省「当季有披露值的资产」算术平均，不同季度的样本资产数可能不同，因此趋势波动含样本变动成分，不完全是同店变化。<br>
+    坪效 = 租金收入 ÷ 期末实际出租面积 ÷ 期间月数 × 12。
+  </div>
+</div>
+
+<script src="data/db.js"></script>
+<script src="assets/app.js"></script>
+<script>
+(function () {
+  const { mountNav, drawChart, fmt, DB, $ } = APP;
+  mountNav("prov");
+
+  const p = new URLSearchParams(location.search).get("p");
+  const prov = DB.provinces.find((x) => x.name === p);
+  if (!prov) {
+    $("#name").textContent = "未找到该省份";
+    $("#meta").textContent = "链接可能已失效，请返回省份列表重新选择。";
+    $("#kv").innerHTML = "";
+    return;
+  }
+  document.title = prov.name + " · 省份表现";
+
+  const assets = DB.assets.filter((a) => a.prov === prov.name);
+
+  $("#crumb").innerHTML = `<a href="index.html">首页</a> / <a href="provinces.html">省份表现</a> / ${prov.name}`;
+  $("#name").textContent = prov.name;
+  $("#meta").innerHTML =
+    `共 ${prov.n} 个底层资产　·　合计可供出租面积 ${fmt.area(prov.area)}` +
+    `　·　覆盖 ${new Set(assets.map((a) => a.fundCode)).size} 只 REITs`;
+
+  $("#kv").innerHTML = [
+    ["平均出租率", fmt.pct(prov.occ), "%"],
+    ["平均租金单价", fmt.n(assets.map(a => a.price).filter(Boolean).reduce((s, x, _, arr) => s + x / arr.length, 0), 2), "元/㎡/天"],
+    ["平均坪效", fmt.n(prov.psm, 0), "元/㎡/年"],
+    ["平均 NOI 率", fmt.pct(prov.noi), "%"],
+  ].map(([k, v, u]) =>
+    `<div class="item"><div class="k">${k}</div><div class="v">${v}<small> ${u}</small></div></div>`).join("");
+
+  const charts = [
+    ["occ", "出租率趋势", "%", "#4375ff", (v) => v.toFixed(0) + "%"],
+    ["psm", "坪效趋势（年化）", "元/㎡/年", "#7a5af8", (v) => Math.round(v)],
+  ];
+  document.getElementById("charts").className = "chart-grid";
+  $("#charts").innerHTML = charts.map(([k, t, u]) =>
+    `<div class="card chart-box">
+       <div class="chart-title"><b>${t}</b><span>${u}</span></div>
+       <div class="chart" id="c_${k}"></div>
+     </div>`).join("");
+
+  charts.forEach(([k, , , c, yf], i) => {
+    drawChart($("#c_" + k), {
+      id: "p" + i,
+      points: prov.series.map((r) => ({ q: r.q, v: r[k] })),
+      color: c, yfmt: yf,
+    });
+  });
+
+  $("#cnt").textContent = prov.n + " 个";
+  $("#tbl").innerHTML =
+    `<thead><tr><th class="l">资产</th><th>报告期</th><th>出租率</th><th>租金单价</th>
+      <th>坪效</th><th>NOI 率</th><th>趋势</th></tr></thead>
+     <tbody>${assets.map((a) => `<tr onclick="location.href='asset.html?id=${encodeURIComponent(a.id)}'">
+       <td class="l"><div class="asset-name">${a.name}</div>
+         <div class="asset-sub">${a.fund.replace("封闭式基础设施证券投资基金", "REIT")}</div></td>
+       <td class="muted" style="font-size:12px">${fmt.qs(a.quarter)}</td>
+       <td>${fmt.pct(a.occ)}</td><td>${fmt.n(a.price, 2)}</td>
+       <td>${fmt.n(a.psm, 0)}</td><td>${fmt.pct(a.noi)}</td>
+       <td>${APP.sparkline(a.series, "occ")}</td></tr>`).join("")}</tbody>`;
+})();
+</script>
+</body>
+</html>

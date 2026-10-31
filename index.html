@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>产业园区 REITs · 底层资产运营图谱</title>
+<meta name="description" content="产业园区基础设施 REITs 底层资产运营数据：出租率、租金、坪效、NOI 的省份分布与季度趋势。">
+<meta name="theme-color" content="#4375ff">
+<script>
+/* 首屏前应用主题，避免明暗闪烁（19:00–07:00 自动深夜模式） */
+(function () {
+  try {
+    var m = sessionStorage.getItem("reits-theme-mode");
+    var h = new Date().getHours();
+    var t = (m === "light" || m === "dark") ? m : ((h >= 19 || h < 7) ? "dark" : "light");
+    document.documentElement.setAttribute("data-theme", t);
+  } catch (e) {}
+})();
+</script>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<div class="wrap">
+  <div class="page-head">
+    <div class="eyebrow">China Industrial Park REITs</div>
+    <h1>产业园区 REITs · 底层资产运营图谱</h1>
+    <p class="sub" id="sub">按项目（底层资产）粒度汇总的运营与财务数据，覆盖出租率、租金水平、坪效与运营净收益率。点击地图中的省份查看该省资产表现。</p>
+  </div>
+
+  <div class="stats" id="stats"></div>
+
+  <div class="card map-card">
+    <div class="map-grid">
+      <div>
+        <svg id="map" xmlns="http://www.w3.org/2000/svg"></svg>
+      </div>
+      <div class="map-side">
+        <h3>资产分布（按省份）</h3>
+        <div class="prov-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="chart-grid" style="margin-top:16px">
+    <div class="card card-pad">
+      <div class="chart-title"><b>出租率 TOP 8</b><span id="rq"></span></div>
+      <table class="tbl" id="rankOcc"></table>
+    </div>
+    <div class="card card-pad">
+      <div class="chart-title"><b>坪效 TOP 8</b><span>元/㎡/年</span></div>
+      <table class="tbl" id="rankPsm"></table>
+    </div>
+  </div>
+
+  <div class="foot">
+    数据来源：上交所、深交所基金定期报告（季报 / 中期报告 / 年度报告），经结构化解析后入库。<br>
+    坪效 = 租金收入 ÷ 期末实际出租面积 ÷ 期间月数 × 12；省份指标为该省资产的算术平均。<br>
+    统计口径以各期报告披露值优先，缺失指标不做插补，显示为“—”。
+  </div>
+</div>
+
+<script src="data/db.js"></script>
+<script src="data/geo.js"></script>
+<script src="assets/app.js"></script>
+<script>
+(function () {
+  const { mountNav, mountMap, fmt, DB, $ } = APP;
+  mountNav("home");
+
+  const m = DB.meta;
+  const stat = [
+    ["覆盖基金", m.nFund, "只"],
+    ["底层资产", m.nAsset, "个"],
+    ["分布省份", m.nProv, "个"],
+    ["平均出租率", m.avgOcc, "%"],
+  ];
+  $("#stats").innerHTML = stat.map(([k, v, u]) =>
+    `<div class="stat"><div class="k">${k}</div><div class="v">${v === null ? "—" : v}<small>${u}</small></div></div>`
+  ).join("");
+
+  $("#sub").textContent =
+    `按项目（底层资产）粒度汇总，最新报告期 ${fmt.q(m.latest)}，共 ${m.nQuarter} 个报告期。` +
+    `点击地图中的省份查看该省资产表现。`;
+
+  mountMap($("#map"), $(".map-side"));
+
+  const rank = (key, host, unit, digits) => {
+    const rows = DB.assets.filter((a) => a[key] !== null).sort((a, b) => b[key] - a[key]).slice(0, 8);
+    $(host).innerHTML = rows.map((a) => `<tr onclick="location.href='asset.html?id=${encodeURIComponent(a.id)}'">
+      <td class="l"><div class="asset-name">${a.name}</div>
+      <div class="asset-sub">${a.prov} · ${a.fund.replace("封闭式基础设施证券投资基金", "REIT")}</div></td>
+      <td>${fmt.n(a[key], digits)}<span class="muted" style="font-size:11px"> ${unit}</span></td></tr>`).join("");
+  };
+  rank("occ", "#rankOcc", "%", 2);
+  rank("psm", "#rankPsm", "元/㎡", 0);
+  $("#rq").textContent = fmt.q(m.latest);
+})();
+</script>
+</body>
+</html>

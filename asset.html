@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>资产详情 · 产业园区 REITs</title>
+<meta name="theme-color" content="#4375ff">
+<script>
+/* 首屏前应用主题，避免明暗闪烁（19:00–07:00 自动深夜模式） */
+(function () {
+  try {
+    var m = sessionStorage.getItem("reits-theme-mode");
+    var h = new Date().getHours();
+    var t = (m === "light" || m === "dark") ? m : ((h >= 19 || h < 7) ? "dark" : "light");
+    document.documentElement.setAttribute("data-theme", t);
+  } catch (e) {}
+})();
+</script>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<div class="wrap" id="app">
+  <div class="page-head">
+    <div class="crumb" id="crumb"></div>
+    <div class="eyebrow">Asset Detail</div>
+    <h1 id="name">—</h1>
+    <p class="sub" id="meta"></p>
+  </div>
+
+  <div class="card card-pad" style="margin-bottom:16px">
+    <div class="kv" id="kv"></div>
+  </div>
+
+  <div class="chart-grid" id="charts"></div>
+
+  <div class="card card-pad" style="margin-top:16px">
+    <div class="chart-title"><b>分报告期明细</b><span id="tblQ"></span></div>
+    <div style="overflow:auto">
+      <table class="tbl" id="detail"></table>
+    </div>
+  </div>
+
+  <div class="card card-pad" style="margin-top:16px" id="peersBox">
+    <div class="chart-title"><b>同省其他资产</b><span id="peersProv"></span></div>
+    <table class="tbl" id="peers"></table>
+  </div>
+
+  <div class="foot" id="foot"></div>
+</div>
+
+<script src="data/db.js"></script>
+<script src="assets/app.js"></script>
+<script>
+(function () {
+  const { mountNav, drawChart, fmt, DB, $ } = APP;
+  mountNav("assets");
+
+  const id = new URLSearchParams(location.search).get("id");
+  const a = DB.assets.find((x) => x.id === id);
+  if (!a) {
+    $("#name").textContent = "未找到该资产";
+    $("#meta").textContent = "链接可能已失效，请返回列表重新选择。";
+    $("#kv").innerHTML = "";
+    return;
+  }
+  document.title = a.name + " · 产业园区 REITs";
+
+  $("#crumb").innerHTML = `<a href="index.html">首页</a> / <a href="assets.html">底层资产</a> / ${a.name}`;
+  $("#name").textContent = a.name;
+  $("#meta").innerHTML =
+    `${a.fund}（${a.fundCode}）　·　<span class="pill">${a.prov}</span>${a.city !== a.prov ? " " + a.city : ""}` +
+    `　·　${a.type || "产权类"}　·　最新报告期 <b>${fmt.q(a.quarter)}</b>` +
+    `　·　共 ${a.n} 个报告期`;
+
+  const items = [
+    ["出租率", fmt.pct(a.occ), "occ", "%"],
+    ["租金单价", fmt.n(a.price, 2), "price", "元/㎡/天"],
+    ["坪效（年化）", fmt.n(a.psm, 0), "psm", "元/㎡/年"],
+    ["运营净收益率", fmt.pct(a.noi), "noi", "%"],
+  ];
+  $("#kv").innerHTML = items.map(([k, v, key, unit]) => {
+    const d = APP.deltaPctPoint(a.series, key);
+    const sign = d === null ? "" : `${d > 0 ? "+" : ""}${d.toFixed(2)} pct`;
+    const cls = d === null ? "muted" : d > 0 ? "up" : "down";
+    return `<div class="item"><div class="k">${k}</div>
+      <div class="v">${v}<small> ${unit}</small></div>
+      <div class="${cls}" style="font-size:11px">${d === null ? "较上期 —" : "较上期 " + sign}</div></div>`;
+  }).join("");
+
+  const charts = [
+    ["occ", "出租率", "%", "#4375ff", (v) => v.toFixed(0) + "%"],
+    ["price", "租金单价（含税）", "元/㎡/天", "#12a594", (v) => v.toFixed(2)],
+    ["psm", "坪效（年化）", "元/㎡/年", "#7a5af8", (v) => Math.round(v)],
+    ["noi", "运营净收益率", "%", "#f0a020", (v) => v.toFixed(0) + "%"],
+  ];
+  $("#charts").innerHTML = charts.map(([k, t, u, c]) =>
+    `<div class="card chart-box">
+       <div class="chart-title"><b>${t}</b><span>${u}</span></div>
+       <div class="chart" id="c_${k}"></div>
+     </div>`).join("");
+
+  charts.forEach(([k, t, u, c, yf], i) => {
+    drawChart($("#c_" + k), {
+      id: "a" + i,
+      points: a.series.map((r) => ({ q: r.q, v: r[k] })),
+      color: c, yfmt: yf,
+    });
+  });
+
+  // 明细
+  const th = ["报告期", "出租率", "租金单价", "租金收缴率", "剩余租期(天)", "租金收入", "坪效(年化)", "NOI率"];
+  $("#detail").innerHTML =
+    `<thead><tr>${th.map((t, i) => `<th class="${i === 0 ? "l" : ""}">${t}</th>`).join("")}</tr></thead>` +
+    `<tbody>${a.series.slice().reverse().map((r) => `<tr style="cursor:default">
+      <td class="l">${fmt.q(r.q)}</td>
+      <td>${fmt.pct(r.occ)}</td>
+      <td>${fmt.n(r.price, 2)}</td>
+      <td>${fmt.pct(r.collect)}</td>
+      <td>${fmt.n(r.wale, 0)}</td>
+      <td>${fmt.money(r.rent)}</td>
+      <td>${fmt.n(r.psm, 0)}</td>
+      <td>${fmt.pct(r.noi)}</td>
+    </tr>`).join("")}</tbody>`;
+
+  // 同省
+  const peers = DB.assets.filter((x) => x.prov === a.prov && x.id !== a.id);
+  $("#peersProv").textContent = a.prov + " 共 " + (peers.length + 1) + " 个资产";
+  $("#peers").innerHTML =
+    `<thead><tr><th class="l">资产</th><th>报告期</th><th>出租率</th><th>坪效</th><th>NOI 率</th></tr></thead>
+     <tbody>${peers.map((p) => `<tr onclick="location.href='asset.html?id=${encodeURIComponent(p.id)}'">
+       <td class="l"><div class="asset-name">${p.name}</div>
+         <div class="asset-sub">${p.fund.replace("封闭式基础设施证券投资基金", "REIT")}</div></td>
+       <td class="muted" style="font-size:12px">${fmt.qs(p.quarter)}</td>
+       <td>${fmt.pct(p.occ)}</td><td>${fmt.n(p.psm, 0)}</td><td>${fmt.pct(p.noi)}</td></tr>`).join("")
+       || `<tr><td colspan="5" class="empty">该省暂无其他资产</td></tr>`}</tbody>`;
+
+  $("#foot").innerHTML =
+    `数据来源：${a.fund} 定期报告（上交所 / 深交所披露）。` +
+    (a.src ? ` <a href="${a.src}" target="_blank" rel="noopener" style="color:var(--theme)">查看最新一期报告 ↗</a>` : "") +
+    `<br>坪效 = 租金收入 ÷ 期末实际出租面积 ÷ 期间月数 × 12；NOI 率 =（营业收入 − 营业成本/费用 + 财务费用）÷ 营业收入。` +
+    `<br>指标以报告披露值优先，缺失不做插补。`;
+})();
+</script>
+</body>
+</html>

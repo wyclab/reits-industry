@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>底层资产列表 · 产业园区 REITs</title>
+<meta name="theme-color" content="#4375ff">
+<script>
+/* 首屏前应用主题，避免明暗闪烁（19:00–07:00 自动深夜模式） */
+(function () {
+  try {
+    var m = sessionStorage.getItem("reits-theme-mode");
+    var h = new Date().getHours();
+    var t = (m === "light" || m === "dark") ? m : ((h >= 19 || h < 7) ? "dark" : "light");
+    document.documentElement.setAttribute("data-theme", t);
+  } catch (e) {}
+})();
+</script>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<div class="wrap">
+  <div class="page-head">
+    <div class="eyebrow">Assets</div>
+    <h1>底层资产列表</h1>
+    <p class="sub">每行是一个底层资产（一个项目），按项目粒度建档。点击表头排序，点击任意资产查看其季度趋势。</p>
+  </div>
+
+  <div class="toolbar">
+    <div class="search">
+      <span class="muted">🔍</span>
+      <input id="q" type="search" placeholder="搜索资产、基金或城市…" autocomplete="off">
+    </div>
+  </div>
+  <div class="chips" id="chips" style="margin-bottom:14px"></div>
+
+  <div class="card" style="overflow-x:auto">
+    <table class="tbl" id="tbl">
+      <thead></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <div class="foot">
+    出租率、租金单价取自各报告“分项目运营指标”；坪效、NOI 率由财务数据派生。<br>
+    “报告期”为该资产最新可得数据的报告期，不同资产可能不在同一季度。
+  </div>
+</div>
+
+<script src="data/db.js"></script>
+<script src="assets/app.js"></script>
+<script>
+(function () {
+  const { mountNav, fmt, DB, $, $$ } = APP;
+  mountNav("assets");
+
+  const COLS = [
+    { k: "name",   t: "底层资产",  l: true },
+    { k: "city",   t: "城市",     l: true },
+    { k: "quarter",t: "报告期" },
+    { k: "occ",    t: "出租率" },
+    { k: "price",  t: "租金单价(元/㎡/天)" },
+    { k: "psm",    t: "坪效(元/㎡/年)" },
+    { k: "noi",    t: "NOI 率" },
+    { k: "_spark", t: "出租率趋势", nosort: true },
+  ];
+  let sortKey = "occ", sortDir = -1, provFilter = "", kw = "";
+
+  const provs = [...new Set(DB.assets.map((a) => a.prov))].sort();
+  $("#chips").innerHTML =
+    `<div class="chip on" data-p="">全部 ${DB.assets.length}</div>` +
+    provs.map((p) => {
+      const n = DB.assets.filter((a) => a.prov === p).length;
+      return `<div class="chip" data-p="${p}">${p} ${n}</div>`;
+    }).join("");
+
+  function head() {
+    $("thead", $("#tbl")).innerHTML = `<tr>${COLS.map((c) =>
+      `<th class="${c.l ? "l" : ""} ${sortKey === c.k ? "on" : ""}" data-k="${c.k}" ${c.nosort ? 'style="cursor:default"' : ""}>${c.t}${
+        sortKey === c.k ? (sortDir < 0 ? " ↓" : " ↑") : ""
+      }</th>`).join("")}</tr>`;
+    $$("th", $("#tbl")).forEach((th) => {
+      if (th.dataset.k === "_spark") return;
+      th.onclick = () => {
+        const k = th.dataset.k;
+        if (sortKey === k) sortDir *= -1;
+        else { sortKey = k; sortDir = k === "name" || k === "city" ? 1 : -1; }
+        head(); body();
+      };
+    });
+  }
+
+  function rows() {
+    let r = DB.assets.slice();
+    if (provFilter) r = r.filter((a) => a.prov === provFilter);
+    if (kw) {
+      const k = kw.toLowerCase();
+      r = r.filter((a) =>
+        (a.name + a.fund + a.city + a.prov).toLowerCase().includes(k));
+    }
+    r.sort((a, b) => {
+      const x = a[sortKey], y = b[sortKey];
+      if (x === null || x === undefined) return 1;
+      if (y === null || y === undefined) return -1;
+      if (typeof x === "string") return x.localeCompare(y, "zh") * sortDir;
+      return (x - y) * sortDir;
+    });
+    return r;
+  }
+
+  function body() {
+    const list = rows();
+    if (!list.length) {
+      $("tbody", $("#tbl")).innerHTML = `<tr><td colspan="8" class="empty">没有匹配的资产</td></tr>`;
+      return;
+    }
+    $("tbody", $("#tbl")).innerHTML = list.map((a) => `
+      <tr onclick="location.href='asset.html?id=${encodeURIComponent(a.id)}'">
+        <td class="l">
+          <div class="asset-name">${a.name}</div>
+          <div class="asset-sub">${a.fund.replace("封闭式基础设施证券投资基金", "REIT")}</div>
+        </td>
+        <td class="l"><span class="pill">${a.prov}</span> ${a.city !== a.prov ? a.city : ""}</td>
+        <td class="muted" style="font-size:12px">${fmt.qs(a.quarter)}</td>
+        <td>${fmt.pct(a.occ)}</td>
+        <td>${fmt.n(a.price, 2)}</td>
+        <td>${fmt.n(a.psm, 0)}</td>
+        <td>${fmt.pct(a.noi)}</td>
+        <td>${APP.sparkline(a.series, "occ")}</td>
+      </tr>`).join("");
+  }
+
+  $$(".chip").forEach((c) => {
+    c.onclick = () => {
+      $$(".chip").forEach((x) => x.classList.remove("on"));
+      c.classList.add("on");
+      provFilter = c.dataset.p;
+      body();
+    };
+  });
+  $("#q").oninput = (e) => { kw = e.target.value.trim(); body(); };
+
+  head(); body();
+})();
+</script>
+</body>
+</html>

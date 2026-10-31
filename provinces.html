@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>省份表现 · 产业园区 REITs</title>
+<meta name="theme-color" content="#4375ff">
+<script>
+/* 首屏前应用主题，避免明暗闪烁（19:00–07:00 自动深夜模式） */
+(function () {
+  try {
+    var m = sessionStorage.getItem("reits-theme-mode");
+    var h = new Date().getHours();
+    var t = (m === "light" || m === "dark") ? m : ((h >= 19 || h < 7) ? "dark" : "light");
+    document.documentElement.setAttribute("data-theme", t);
+  } catch (e) {}
+})();
+</script>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<div class="wrap">
+  <div class="page-head">
+    <div class="eyebrow">By Province</div>
+    <h1>省份表现</h1>
+    <p class="sub">按省份汇总该省全部底层资产的本期表现。点击进入可查看该省的季度趋势与资产明细。</p>
+  </div>
+
+  <div class="stats" id="stats"></div>
+  <div class="prov-cards" id="cards"></div>
+
+  <div class="foot">
+    省份指标为该省全部底层资产的算术平均；仅有 1 个资产的省份即该资产自身数值。<br>
+    地图分布见 <a href="index.html" style="color:var(--theme)">首页</a>。
+  </div>
+</div>
+
+<script src="data/db.js"></script>
+<script src="assets/app.js"></script>
+<script>
+(function () {
+  const { mountNav, fmt, DB, $ } = APP;
+  mountNav("prov");
+
+  const P = DB.provinces.slice().sort((a, b) => b.n - a.n || (b.psm || 0) - (a.psm || 0));
+  const m = DB.meta;
+
+  const avg = (k) => {
+    const v = DB.assets.map((a) => a[k]).filter((x) => x !== null && x !== undefined);
+    return v.length ? v.reduce((s, x) => s + x, 0) / v.length : null;
+  };
+  void avg;
+  void avg;
+
+  $("#stats").innerHTML = [
+    ["覆盖省份", m.nProv, "个"],
+    ["资产总数", m.nAsset, "个"],
+    ["最新期平均出租率", fmt.pct(m.avgOcc), ""],
+    ["最新期平均坪效", fmt.n(m.avgPsm, 0), "元/㎡/年"],
+  ].map(([k, v, u]) =>
+    `<div class="stat"><div class="k">${k}</div><div class="v">${v}<small>${u}</small></div></div>`).join("");
+
+  $("#cards").innerHTML = P.map((p) => `
+    <div class="card prov-card" onclick="location.href='province.html?p=${encodeURIComponent(p.name)}'">
+      <div class="top">
+        <span class="nm">${p.name}</span>
+        <span class="ct">${p.n} 个资产</span>
+      </div>
+      <div class="row2">
+        <span><i>出租率 </i>${fmt.pct(p.occ)}</span>
+        <span><i>坪效 </i>${fmt.n(p.psm, 0)}</span>
+        <span><i>NOI </i>${fmt.pct(p.noi)}</span>
+      </div>
+      <div style="margin-top:12px">${APP.sparkline(p.series, "occ", "#4375ff")}</div>
+    </div>`).join("");
+})();
+</script>
+</body>
+</html>
