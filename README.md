@@ -1,4 +1,4 @@
-# reitsnew.wyclab.com
+# reits.667667.xyz
 
 产业园基础设施 REITs 底层资产数据站，纯静态，无构建步骤、无外部依赖、无第三方 JS。
 
@@ -32,9 +32,9 @@ cd site && python3 -m http.server 8080
 
 ## 部署
 
-站点是纯静态文件，整目录上传即可。绑定 `reitsnew.wyclab.com`：
+站点是纯静态文件，整目录上传即可。绑定 `reits.667667.xyz`：
 
-- **EdgeOne Pages**：新建项目指向 `site/` 目录，添加自定义域名 `reitsnew.wyclab.com`，按提示配置 CNAME。
+- **EdgeOne Pages**：新建项目指向 `site/` 目录，添加自定义域名 `reits.667667.xyz`，按提示配置 CNAME。
 - **对象存储（COS/OSS）+ CDN**：上传全部文件，开启静态网站托管，默认首页 `index.html`，回源域名绑定。
 
 无需 Node、无需编译、无需服务端。
